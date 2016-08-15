@@ -9,11 +9,11 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStreamReader;
 
-import ch.zh.fd.ksta.galaxyTool.rechnungsRecords.GalaxyHeaderRecord;
-import ch.zh.fd.ksta.galaxyTool.rechnungsRecords.GalaxyRechnungsRecord;
-import ch.zh.fd.ksta.galaxyTool.rechnungsRecords.GalaxyRecord;
-import ch.zh.fd.ksta.galaxyTool.rechnungsRecords.GalaxyRecordFactory;
-import ch.zh.fd.ksta.galaxyTool.rechnungsRecords.GalaxySummaryRecord;
+import ch.zh.fd.ksta.galaxyTool.rechnungsRecord.GalaxyHeaderRecord;
+import ch.zh.fd.ksta.galaxyTool.rechnungsRecord.GalaxyRechnungsRecord;
+import ch.zh.fd.ksta.galaxyTool.rechnungsRecord.GalaxyRecord;
+import ch.zh.fd.ksta.galaxyTool.rechnungsRecord.GalaxyRecordFactory;
+import ch.zh.fd.ksta.galaxyTool.rechnungsRecord.GalaxySummaryRecord;
 
 public class GalaxyRechnungsProcessor {
 
@@ -31,6 +31,13 @@ public class GalaxyRechnungsProcessor {
 				processFile(sourceFileName, allWriter);
 			}
 			allWriter.close();
+
+			if(arguments.getRechnungsFilterList().size() > 0) {
+				System.out.println("Gefilterte Rechnungen:");
+				for(RechnungsFilter filter : arguments.getRechnungsFilterList()) {
+					System.out.println(filter.getArbeitgeberNummer() + "/" + filter.getRechnungsNummer() + ": " + filter.getCounter());
+				}
+			}
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
@@ -40,14 +47,20 @@ public class GalaxyRechnungsProcessor {
 		File sourceFile = new File(sourceFileName);
 		File destinationFile = new File(sourceFileName + ".csv");
 		File summaryFile = new File(sourceFileName + ".total.csv");
+		File includeFile = new File(sourceFileName + ".incl");
+		File excludeFile = new File(sourceFileName + ".excl");
 
 		System.out.println("Processing " + sourceFile.getPath());
 
 		BufferedReader sourceReader = null;
 		BufferedWriter destinationWriter = null;
+		BufferedWriter includeWriter = null;
+		BufferedWriter excludeWriter = null;
 		try {
 			sourceReader = new BufferedReader(new InputStreamReader(new FileInputStream(sourceFile), arguments.getSourceFileEncoding()));
 			destinationWriter = new BufferedWriter(new FileWriter(destinationFile));
+			includeWriter = (arguments.getRechnungsFilterList().size() == 0) ? null : new BufferedWriter(new FileWriter(includeFile));
+			excludeWriter = (arguments.getRechnungsFilterList().size() == 0) ? null : new BufferedWriter(new FileWriter(excludeFile));
 
 			destinationWriter.write(GalaxyRechnungsRecord.csvHeader());
 			allWriter.write(GalaxyRechnungsRecord.csvHeader());
@@ -55,7 +68,7 @@ public class GalaxyRechnungsProcessor {
 			allWriter.newLine();
 
 			GalaxyRecord record;
-			GalaxyRecordFactory recordFactory = new GalaxyRecordFactory(sourceReader); 
+			GalaxyRecordFactory recordFactory = new GalaxyRecordFactory(sourceReader, includeWriter, excludeWriter, arguments.getRechnungsFilterList()); 
 			GalaxySummaryRecord summaryRecord = null;
 			while((record = recordFactory.nextRecord()) != null) {
 				if(record instanceof GalaxyHeaderRecord) {
@@ -72,6 +85,8 @@ public class GalaxyRechnungsProcessor {
 				}
 			}
 			destinationWriter.close();
+			if(includeWriter != null) includeWriter.close();
+			if(excludeWriter != null) excludeWriter.close();
 
 			if(summaryRecord == null) {
 				throw new IllegalArgumentException("Kein Total Record vorhanden");
